@@ -80,6 +80,3 @@ int DynArray_bsearch(DynArray_T oDynArray, void *pvSoughtElement,
 					 int (*pfCompare)(const void *pvElement1, const void *pvElement2));
 
 #endif
-×
-Drag and Drop
-The image will be downloaded
