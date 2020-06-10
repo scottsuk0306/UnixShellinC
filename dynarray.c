@@ -14,7 +14,7 @@ enum { GROWTH_FACTOR = 2 };
 /*--------------------------------------------------------------------*/
 /* A DynArray consists of an array, along with its logical and
    physical lengths. */
-struct DynArray
+typedef struct DynArray
 {
 	/* The number of elements in the DynArray from the client's
 	   point of view. */
@@ -26,7 +26,7 @@ struct DynArray
 
 	/* The array that underlies the DynArray. */
 	const void **ppvArray;
-};
+}DynArray;
 /*--------------------------------------------------------------------*/
 /* Check the invariants of oDynArray.  Return 1 (TRUE) iff oDynArray
    is in a valid state. */

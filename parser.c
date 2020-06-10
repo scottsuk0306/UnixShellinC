@@ -18,7 +18,7 @@ enum {MAX_LINE_SIZE = 1024};
 
 enum {FALSE, TRUE};
 
-enum TokenType {TOKEN_NUMBER, TOKEN_WORD, TOKEN_COMM, TOKEN_LINE};
+enum TokenType {TOKEN_WORD, TOKEN_LINE};
 
 /*--------------------------------------------------------------------*/
 
@@ -35,7 +35,7 @@ struct Token
 
 /*--------------------------------------------------------------------*/
 
-static void freeToken(void *pvItem, void *pvExtra)
+void freeToken(void *pvItem, void *pvExtra) // static is deleted
 
 /* Free token pvItem.  pvExtra is unused. */
 
@@ -43,19 +43,6 @@ static void freeToken(void *pvItem, void *pvExtra)
    struct Token *psToken = (struct Token*)pvItem;
    free(psToken->pcValue);
    free(psToken);
-}
-
-/*--------------------------------------------------------------------*/
-
-static void printNumberToken(void *pvItem, void *pvExtra)
-
-/* Print token pvItem to stdout iff it is a number.  pvExtra is
-   unused. */
-
-{
-   struct Token *psToken = (struct Token*)pvItem;
-   if (psToken->eType == TOKEN_NUMBER)
-      printf("%s ", psToken->pcValue);
 }
 
 /*--------------------------------------------------------------------*/
@@ -68,19 +55,6 @@ static void printWordToken(void *pvItem, void *pvExtra)
 {
    struct Token *psToken = (struct Token*)pvItem;
    if (psToken->eType == TOKEN_WORD)
-      printf("%s ", psToken->pcValue);
-}
-
-/*--------------------------------------------------------------------*/
-
-static void printCommentToken(void *pvItem, void *pvExtra)
-
-/* Print token pvItem to stdout iff it is a Comment.  pvExtra is
-   unused. */
-
-{
-   struct Token *psToken = (struct Token*)pvItem;
-   if (psToken->eType == TOKEN_COMM)
       printf("%s ", psToken->pcValue);
 }
 
@@ -106,7 +80,7 @@ static void printAllToken(void *pvItem, void *pvExtra)
 
 {
    struct Token *psToken = (struct Token*)pvItem;
-   printf("%s", psToken->pcValue);
+   printf("%s\n", psToken->pcValue);
 }
 
 /*--------------------------------------------------------------------*/
@@ -141,7 +115,7 @@ static struct Token *makeToken(enum TokenType eTokenType,
 
 /*--------------------------------------------------------------------*/
 
-static int lexLine(const char *pcLine, DynArray_T oTokens)
+int lexLine(const char *pcLine, DynArray_T oTokens)
 
 /* Lexically analyze string pcLine.  Populate oTokens with the
    tokens that pcLine contains.  Return 1 (TRUE) if successful, or
@@ -153,7 +127,7 @@ static int lexLine(const char *pcLine, DynArray_T oTokens)
    pcLine. */
 
 {
-   enum LexState {STATE_START, STATE_IN_NUMBER, STATE_IN_WORD, STATE_IN_COMM, STATE_IN_LINE };
+   enum LexState {STATE_START, STATE_IN_WORD, STATE_IN_COMM, STATE_IN_LINE};
 
    enum LexState eState = STATE_START;
 
@@ -177,12 +151,6 @@ static int lexLine(const char *pcLine, DynArray_T oTokens)
             if ((c == '\n') || (c == '\0'))
                return TRUE;
 
-            else if (isdigit(c))
-            {
-               acValue[iValueIndex++] = c; // 3
-               eState = STATE_IN_NUMBER;
-            }
-
             else if (c == '"')
             {
               eState = STATE_IN_COMM;
@@ -197,129 +165,10 @@ static int lexLine(const char *pcLine, DynArray_T oTokens)
             else if ( isspace(c) || (c == '\t'))
                eState = STATE_START;
 
-            else if (isalpha(c) || (c > 32 && c < 127))
+            else if (isalpha(c) || (c > 32 && c < 127)) // || isdigit(c)
             {
               acValue[iValueIndex++] = c;
               eState = STATE_IN_WORD;
-            }
-            else
-            {
-               fprintf(stderr, "Invalid line\n");
-               return FALSE;
-            }
-
-            break;
-
-         case STATE_IN_NUMBER:
-            if ((c == '\n') || (c == '\0'))
-            {
-               /* Create a NUMBER token. */
-               acValue[iValueIndex] = '\0';
-               psToken = makeToken(TOKEN_NUMBER, acValue);
-               if (psToken == NULL)
-               {
-                  fprintf(stderr, "Cannot allocate memory\n");
-                  return FALSE;
-               }
-
-               if (! DynArray_add(oTokens, psToken))
-               {
-                  fprintf(stderr, "Cannot allocate memory\n");
-                  return FALSE;
-               }
-
-               iValueIndex = 0;
-
-               return TRUE;
-            }
-
-
-            else if (isdigit(c))
-            {
-               acValue[iValueIndex++] = c; // 324
-               eState = STATE_IN_NUMBER;
-            }
-
-
-
-            else if (c == '"')
-            {
-              /* Create a NUMBER token. */
-              acValue[iValueIndex] = '\0';
-              psToken = makeToken(TOKEN_NUMBER, acValue);
-              if (psToken == NULL)
-              {
-                 fprintf(stderr, "Cannot allocate memory\n");
-                 return FALSE;
-              }
-              if (! DynArray_add(oTokens, psToken))
-              {
-                 fprintf(stderr, "Cannot allocate memory\n");
-                 return FALSE;
-              }
-              iValueIndex = 0;
-              eState = STATE_IN_COMM;
-            }
-
-            else if (c == '|')
-            {
-              /* Create a NUMBER token. */
-              acValue[iValueIndex] = '\0';
-              psToken = makeToken(TOKEN_NUMBER, acValue);
-              if (psToken == NULL)
-              {
-                 fprintf(stderr, "Cannot allocate memory\n");
-                 return FALSE;
-              }
-
-              if (! DynArray_add(oTokens, psToken))
-              {
-                 fprintf(stderr, "Cannot allocate memory\n");
-                 return FALSE;
-              }
-
-              iValueIndex = 0;
-              acValue[iValueIndex++] = c;
-              eState = STATE_IN_LINE;
-            }
-
-            else if ( isspace(c) || (c == '\t'))
-            {
-               /* Create a NUMBER token. */
-               acValue[iValueIndex] = '\0';
-               psToken = makeToken(TOKEN_NUMBER, acValue);
-               if (psToken == NULL)
-               {
-                  fprintf(stderr, "Cannot allocate memory\n");
-                  return FALSE;
-               }
-               if (! DynArray_add(oTokens, psToken))
-               {
-                  fprintf(stderr, "Cannot allocate memory\n");
-                  return FALSE;
-               }
-               iValueIndex = 0;
-
-               eState = STATE_START;
-            }
-            else if (isalpha(c) || (c > 32 && c < 127))
-            {
-               /* Create a NUMBER token. */
-               acValue[iValueIndex] = '\0';
-               psToken = makeToken(TOKEN_NUMBER, acValue);
-               if (psToken == NULL)
-               {
-                  fprintf(stderr, "Cannot allocate memory\n");
-                  return FALSE;
-               }
-               if (! DynArray_add(oTokens, psToken))
-               {
-                  fprintf(stderr, "Cannot allocate memory\n");
-                  return FALSE;
-               }
-               iValueIndex = 0;
-               acValue[iValueIndex++] = c;
-               eState = STATE_IN_WORD;
             }
             else
             {
@@ -352,49 +201,8 @@ static int lexLine(const char *pcLine, DynArray_T oTokens)
 
                return TRUE;
             }
-
-            else if (isdigit(c))
-            {
-               /* Create a WORD token. */
-               acValue[iValueIndex] = '\0';
-               psToken = makeToken(TOKEN_WORD, acValue);
-               if (psToken == NULL)
-               {
-                  fprintf(stderr, "Cannot allocate memory\n");
-                  return FALSE;
-               }
-               if (! DynArray_add(oTokens, psToken))
-               {
-                  fprintf(stderr, "Cannot allocate memory\n");
-                  return FALSE;
-               }
-               iValueIndex = 0;
-               acValue[iValueIndex++] = c;
-               eState = STATE_IN_NUMBER;
-            }
-
-
-
             else if (c == '"')
             {
-               /* Create a WORD token. */
-               acValue[iValueIndex] = '\0';
-               psToken = makeToken(TOKEN_WORD, acValue);
-
-               if (psToken == NULL)
-               {
-                  fprintf(stderr, "Cannot allocate memory\n");
-                  return FALSE;
-               }
-
-               if (! DynArray_add(oTokens, psToken))
-               {
-                  fprintf(stderr, "Cannot allocate memory\n");
-                  return FALSE;
-               }
-
-               iValueIndex = 0;
-
                eState = STATE_IN_COMM;
             }
 
@@ -443,39 +251,25 @@ static int lexLine(const char *pcLine, DynArray_T oTokens)
 
                eState = STATE_START;
             }
+
             else if (isalpha(c) || (c > 32 && c < 127))
             {
                acValue[iValueIndex++] = c;
                eState = STATE_IN_WORD;
             }
+
             else
             {
                fprintf(stderr, "Invalid line\n");
                return FALSE;
             }
+
             break;
 
          case STATE_IN_COMM:
             if (c == '"')
             {
-               acValue[iValueIndex] = '\0';
-               psToken = makeToken(TOKEN_COMM, acValue);
-
-               if (psToken == NULL)
-               {
-                  fprintf(stderr, "Cannot allocate memory\n");
-                  return FALSE;
-               }
-
-               if (! DynArray_add(oTokens, psToken))
-               {
-                  fprintf(stderr, "Cannot allocate memory\n");
-                  return FALSE;
-               }
-
-               iValueIndex = 0;
-
-               eState = STATE_START;
+               eState = STATE_IN_WORD;
             }
 
             else if (c == '\0')
@@ -515,28 +309,6 @@ static int lexLine(const char *pcLine, DynArray_T oTokens)
                return TRUE;
             }
 
-            else if (isdigit(c))
-            {
-               /* Create a LINE token. */
-               acValue[iValueIndex] = '\0';
-               psToken = makeToken(TOKEN_LINE, acValue);
-
-               if (psToken == NULL)
-               {
-                  fprintf(stderr, "Cannot allocate memory\n");
-                  return FALSE;
-               }
-
-               if (! DynArray_add(oTokens, psToken))
-               {
-                  fprintf(stderr, "Cannot allocate memory\n");
-                  return FALSE;
-               }
-               iValueIndex = 0;
-               acValue[iValueIndex++] = c;
-               eState = STATE_IN_NUMBER;
-            }
-
             else if (c == '"')
             {
                acValue[iValueIndex] = '\0';
@@ -558,6 +330,7 @@ static int lexLine(const char *pcLine, DynArray_T oTokens)
 
                eState = STATE_IN_COMM;
             }
+
             else if (c == '|')
             {
                /* Create a LINE token. */
@@ -602,6 +375,7 @@ static int lexLine(const char *pcLine, DynArray_T oTokens)
 
                eState = STATE_START;
             }
+
             else if (isalpha(c) || (c > 32 && c < 127))
             {
                /* Create a LINE token. */
@@ -623,11 +397,13 @@ static int lexLine(const char *pcLine, DynArray_T oTokens)
                acValue[iValueIndex++] = c;
                eState = STATE_IN_WORD;
             }
+
             else
             {
                fprintf(stderr, "Invalid line\n");
                return FALSE;
             }
+
             break;
 
          default:
@@ -637,10 +413,60 @@ static int lexLine(const char *pcLine, DynArray_T oTokens)
 }
 
 /*--------------------------------------------------------------------*/
+int synLine(DynArray_T oTokens)
+/* syntatically analyze the set of tokens. */
 
-int main(void)
+/* The '|' token should indicate that the immediate token
+after the '|' is another command. If there's no following token after '|',
+appropriate error message is printed.
+There can be multiple pipe operators in a single command.
+Return 1 if successful. Otherwise, return 0.
+ */
 
-/* Read a line from stdin, and write to stdout each number and word
+{
+  assert(oTokens != NULL);
+
+  struct Token ** array = (struct Token**)malloc(DynArray_getLength(oTokens)*sizeof(struct Token*));
+  for(int i = 0; i < DynArray_getLength(oTokens); i++)
+  {
+    array[i] = DynArray_get(oTokens,i);
+  }
+  for(int i = 0; i < DynArray_getLength(oTokens); i++)
+  {
+    if(array[i] -> eType == TOKEN_LINE)
+    {
+      if(i == 0) // first is |
+      {
+        fprintf(stderr, "Missing command name");
+        free(array);
+        return FALSE;
+      }
+      if(i == DynArray_getLength(oTokens)-1) // last is |
+      {
+        fprintf(stderr, "Missing command name");
+        free(array);
+        return FALSE;
+      }
+      else if(array[i+1] -> eType == TOKEN_LINE) // command should follow after |, no ||
+      {
+        fprintf(stderr, "Pipe or redirection destination not specified");
+        free(array);
+        return FALSE;
+      }
+    }
+  }
+  free(array);
+  return TRUE;
+
+}
+
+
+/*--------------------------------------------------------------------*/
+
+int test(void)
+
+/* Function that test lexical and syntatic analysis.
+  Read a line from stdin, and write to stdout each number and word
    that it contains.  Repeat until EOF.  Return 0 iff successful. */
 
 {
@@ -661,27 +487,24 @@ int main(void)
       iSuccessful = lexLine(acLine, oTokens);
       if (iSuccessful)
       {
-          printf("Numbers:  ");
-          DynArray_map(oTokens, printNumberToken, NULL);
-          printf("\n");
-
           printf("Words:  ");
           DynArray_map(oTokens, printWordToken, NULL);
-          printf("\n");
-
-          printf("Comment: ");
-          DynArray_map(oTokens, printCommentToken, NULL);
           printf("\n");
 
           printf("Line: ");
           DynArray_map(oTokens, printLineToken, NULL);
           printf("\n");
 
-          printf("Result: ");
+          printf("Result: \n");
           DynArray_map(oTokens, printAllToken, NULL);
           printf("\n");
 
       }
+      printf("------------------------------------\n");
+
+      synLine(oTokens);
+      printf("\n");
+
       printf("------------------------------------\n");
 
       DynArray_map(oTokens, freeToken, NULL);
