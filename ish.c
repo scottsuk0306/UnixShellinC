@@ -4,33 +4,85 @@
 #include <unistd.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include "parser.h"
 #include "dynarray.h"
+#include "builtin.h"
+#include <signal.h>
 
 enum {MAX_LINE_SIZE = 1024};
 
 enum {FALSE, TRUE};
 
+char * filepath; // current file name (in this case, ./ish)
+
 // pid_t wait(int *status);
 // pid_t waitpid(pid_t pid, int *status, int options);
 
 
-int main(void)
+int builtin_Execute(int argc, const char* command, char **new_argv)
+{
+  if(!strcmp(command, "setenv"))
+  {
+    if(ish_setenv(argc, new_argv, filepath)) return EXIT_SUCCESS;
+    return EXIT_FAILURE;
+  }
+  if(!strcmp(command, "unsetenv"))
+  {
+    if(ish_unsetenv(argc, new_argv, filepath)) return EXIT_SUCCESS;
+    return EXIT_FAILURE;
+  }
+  if(!strcmp(command, "cd"))
+  {
+    if(ish_cd(argc, new_argv, filepath)) return EXIT_SUCCESS;
+    return EXIT_FAILURE;
+  }
+  if(!strcmp(command, "exit"))
+  {
+    if(ish_exit()) return EXIT_SUCCESS;
+    return EXIT_FAILURE;
+  }
+
+  return -1; // command is not a builtin command
+}
+
+int Execute(int argc, const char* command, char **new_argv)
+{
+  execvp(command, new_argv);
+  // cat, ls, echo, and other commands
+  // setenv unsetenv cd exit has to be realized
+  fprintf(stderr, "%s: %s\n",command,strerror(errno));
+  exit(EXIT_FAILURE);
+}
+
+/* static void tmHandler(int iSig)
 {
 
+}
+*/
 
+int Process(FILE *fp){
   char acLine[MAX_LINE_SIZE];
   DynArray_T oTokens;
   pid_t pid;
   int status;
-
-
-  while (TRUE)
+  /*void (*pfRet)(int);
+  pfRet = signal(SIGINT, myHandler);
+  assert(pfRet != SIG_ERR);
+*/
+  while(TRUE)
   {
-    printf("%% ");
-    if(fgets(acLine, MAX_LINE_SIZE, stdin) == NULL)
+    if(fp == NULL)
     {
-      return FALSE;
+      fprintf(stdout,"%% ");
+      if(fgets(acLine, MAX_LINE_SIZE, stdin) == NULL)  return FALSE;
+
+    }
+    else
+    {
+      fprintf(stdout,"%% ");
+      if(fgets(acLine, MAX_LINE_SIZE, fp) == NULL)  return FALSE;
+      fprintf(stdout,"%s",acLine);
     }
     oTokens = DynArray_new(0);
     if (oTokens == NULL)
@@ -43,33 +95,51 @@ int main(void)
     /* Parse command line
     Assign values to somepgm, someargv */
     char **new_argv;
+    int argc = DynArray_getLength(oTokens);
     new_argv = (char **)malloc(sizeof(char *)*(DynArray_getLength(oTokens)+1));
     struct Token ** array = (struct Token**)malloc(sizeof(struct Token*)*(DynArray_getLength(oTokens)));
-    for(int i = 0; i < DynArray_getLength(oTokens); i++)
+    for(int i = 0; i < argc; i++)
     {
       array[i] = DynArray_get(oTokens,i);
       new_argv[i] = array[i] -> pcValue;
     }
-    new_argv[DynArray_getLength(oTokens)] = NULL;
+    new_argv[argc] = NULL;
 
     const char * command = array[0] -> pcValue;
     fflush(NULL); // Your program should call fflush(NULL) before each call of fork to clear all I/O buffers.
     pid = fork();
     if (pid == 0)
     {
-    /* in child */
-      execvp(command, new_argv);
-      // cat, ls, echo, and other commands
-      // setenv unsetenv cd exit has to be realized
-      fprintf(stderr, "%s: %s\n",command,strerror(errno));
-      exit(EXIT_FAILURE);
+      // fprintf(stdout, "%s\n", new_argv);
+      /* in child */
+      if(!strcmp(command, "setenv")||!strcmp(command, "unsetenv")||!strcmp(command, "cd")||!strcmp(command, "exit"))
+      {
+        exit(EXIT_FAILURE);
+      }
+      Execute(argc, command, new_argv);
     }
      /* in parent */
+     /* in child, execvp automatically free the memory */
+    //pfRet = signal(SIGINT, SIG_IGN);
     pid = wait(&status);
+    builtin_Execute(argc, command, new_argv);
     DynArray_map(oTokens, freeToken, NULL);
     DynArray_free(oTokens);
     free(array);
     free(new_argv);
   }
-  /* Repeat the previous */
+
+
+}
+
+int main(int argc, char **argv)
+{
+  filepath = argv[0];
+  FILE *fp = fopen(".ishrc","r");
+  /* If there is file named .ishrc */
+  if(fp != NULL)
+  {
+    Process(fp);
+  }
+  Process(NULL);
 }
