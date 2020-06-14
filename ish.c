@@ -62,6 +62,7 @@ int Execute(int argc, const char* command, char **new_argv)
 */
 
 int Process(FILE *fp){
+  FILE *fp2 = fp;
   char acLine[MAX_LINE_SIZE];
   DynArray_T oTokens;
   pid_t pid;
@@ -69,10 +70,10 @@ int Process(FILE *fp){
   /*void (*pfRet)(int);
   pfRet = signal(SIGINT, myHandler);
   assert(pfRet != SIG_ERR);
-*/
+ */
   while(TRUE)
   {
-    if(fp == NULL)
+    if(fp2 == NULL)
     {
       fprintf(stdout,"%% ");
       if(fgets(acLine, MAX_LINE_SIZE, stdin) == NULL)  return FALSE;
@@ -81,19 +82,22 @@ int Process(FILE *fp){
     else
     {
       fprintf(stdout,"%% ");
-      if(fgets(acLine, MAX_LINE_SIZE, fp) == NULL)  return FALSE;
+      if(fgets(acLine, MAX_LINE_SIZE, fp2) == NULL)  return FALSE;
       fprintf(stdout,"%s",acLine);
     }
     oTokens = DynArray_new(0);
     if (oTokens == NULL)
     {
-      fprintf(stderr, "Cannot allocate memory\n");
+      fprintf(stderr, "Cannot allocate memory\n"); // not sure about this
       exit(EXIT_FAILURE);
     }
     lexLine(acLine, oTokens);
+    if(DynArray_getLength(oTokens) == 0) continue;
     synLine(oTokens);
     /* Parse command line
     Assign values to somepgm, someargv */
+
+    /* If no tokens in the otokens, no need to execute */
     char **new_argv;
     int argc = DynArray_getLength(oTokens);
     new_argv = (char **)malloc(sizeof(char *)*(DynArray_getLength(oTokens)+1));
@@ -104,8 +108,7 @@ int Process(FILE *fp){
       new_argv[i] = array[i] -> pcValue;
     }
     new_argv[argc] = NULL;
-
-    const char * command = array[0] -> pcValue;
+    const char * command = new_argv[0];
     fflush(NULL); // Your program should call fflush(NULL) before each call of fork to clear all I/O buffers.
     pid = fork();
     if (pid == 0)
@@ -117,6 +120,12 @@ int Process(FILE *fp){
         exit(EXIT_FAILURE);
       }
       Execute(argc, command, new_argv);
+    }
+    else if(pid < 0)
+    {
+      // exit the program
+      perror(filepath);
+      exit(EXIT_FAILURE);
     }
      /* in parent */
      /* in child, execvp automatically free the memory */
@@ -135,11 +144,15 @@ int Process(FILE *fp){
 int main(int argc, char **argv)
 {
   filepath = argv[0];
-  FILE *fp = fopen(".ishrc","r");
-  /* If there is file named .ishrc */
-  if(fp != NULL)
+  FILE * fp;
+  fp = fopen(".ishrc","r");
+  //fprintf(stdout,"%d",fp==NULL);
+  if(fp)
   {
+    //fprintf(stdout,"hello");
     Process(fp);
+    fclose(fp);
   }
+  /* If there is file named .ishrc */
   Process(NULL);
 }
