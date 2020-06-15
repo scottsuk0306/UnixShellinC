@@ -426,19 +426,19 @@ Return 1 if successful. Otherwise, return 0.
     {
       if(i == 0) // first is |
       {
-        fprintf(stderr, "%s: Missing command name",filepath);
+        fprintf(stderr, "%s: Missing command name\n",filepath);
         free(array);
         return EXIT_FAILURE;
       }
       if(i == DynArray_getLength(oTokens)-1) // last is |
       {
-        fprintf(stderr, "%s: Missing command name",filepath);
+        fprintf(stderr, "%s: Missing command name\n",filepath);
         free(array);
         return EXIT_FAILURE;
       }
       else if(array[i+1] -> eType == TOKEN_LINE) // command should follow after |, no ||
       {
-        fprintf(stderr, "%s: Pipe or redirection destination not specified",filepath);
+        fprintf(stderr, "%s: Pipe or redirection destination not specified\n",filepath);
         free(array);
         return EXIT_FAILURE;
       }

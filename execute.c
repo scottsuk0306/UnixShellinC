@@ -92,67 +92,79 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
   int numPipes = 0;
   pid_t pid;
 
-  for(int i = 0; i < argc; i++)
-  {
-    if(strcmp(argv[i], "|") == 0) numPipes++;
-  }
-
-
-
-
-  char *command_arr[numPipes+1];
   // first token for each cmd (line)
   // for example, if ls | grep .txt, then command[2] = ls, grep
   void (*pfRet) (int);
   pfRet = signal(SIGINT, SIG_IGN);
   pfRet = signal(SIGQUIT, quitHandler);
   pfRet = signal(SIGALRM, alarmHandler);
-  // char *ptr = strtok(argv, "|");
-  // int cmdIndex = 0;
-  // while(ptr != NULL)
-  // {
-  //   assert(cmdIndex <= numPipes + 1);
-  //   cmd_arr[cmdIndex] = ptr;
-  //   ptr = strtok(NULL, "|");
-  //   cmdIndex++;
-  // }
 
-  // ptr[0] = ["ls"]  ptr[1] = ["grep", "a.txt"]
-  char **cmd_arr[numPipes+1]; //ptr[0] = new_argv
-  // splice acLine
-  // for example, if A | B | C, then cmd_arr[3] = {A, B, C}
-  int cmdIndex = 0;
-  int cmdNum = 0;
   for(int i = 0; i < argc; i++)
   {
-    if(strcmp(argv[i],"|")!=0)
-    {
-      cmdNum++;
-    }
-    else
-    {
-      char *array[cmdNum+1];
-      for(int j = 0; j < cmdNum; j++)
-      {
-        array[j] = argv[i-cmdNum+j];
-      }
-      array[cmdNum] = NULL;
-      cmd_arr[cmdIndex++] = array;
-      cmdNum = 0;
-    }
+    if(strcmp(argv[i], "|") == 0) numPipes++;
   }
 
-  // refresh cmdIndex
+  char *line_arr[numPipes+2];
+  char *ptr = strtok(acLine, "|");
+  int cmdIndex = 0;
+
+  while(ptr != NULL)
+  {
+    assert(cmdIndex <= numPipes + 1);
+    line_arr[cmdIndex] = ptr;
+    ptr = strtok(NULL, "|");
+    cmdIndex++;
+  }
+
   cmdIndex = 0;
 
-  for(int i = 0; i < argc; i++)
+  char **cmd_arr[numPipes+1];
+  char *command_arr[numPipes+1];
+
+  char **new_argv[numPipes+1];
+  for(int i = 0; i < numPipes + 1; i++)
   {
-    if(i == 0 || argv[i-1] == "|")
+    DynArray_T oTokens = DynArray_new(0);
+    if (oTokens == NULL)
     {
-      assert(cmdIndex <= numPipes + 1);
-      command_arr[cmdIndex] = argv[i];
-      cmdIndex++;
+      fprintf(stderr, "%s: Cannot allocate memory\n", filepath);
+      exit(EXIT_FAILURE);
     }
+    if(lexLine(line_arr[i], oTokens, filepath) == EXIT_FAILURE) continue;
+    if(DynArray_getLength(oTokens) == 0) continue;
+    if(synLine(oTokens, filepath) == EXIT_FAILURE) continue;
+    /* Parse command line
+    Assign values to somepgm, someargv */
+
+    /* If no tokens in the otokens, no need to execute */
+
+    int argc = DynArray_getLength(oTokens);
+    new_argv[cmdIndex] = (char **)malloc(sizeof(char *)*(DynArray_getLength(oTokens)+1));
+    // +1 because new_argv is a string. It has to end with NULL.
+    struct Token ** array = (struct Token**)malloc(sizeof(struct Token*)*(DynArray_getLength(oTokens)));
+    for(int i = 0; i < argc; i++)
+    {
+      array[i] = DynArray_get(oTokens,i);
+      new_argv[cmdIndex][i] = strdup(array[i] -> pcValue);
+      //fprintf(stderr, "new_argv %d : %s\n", i, new_argv[i]);
+    }
+    new_argv[cmdIndex][argc] = NULL;
+    // char * command = new_argv[0];
+
+    cmd_arr[cmdIndex] = new_argv[cmdIndex];
+    command_arr[cmdIndex] = strdup(new_argv[cmdIndex][0]);
+    //fprintf(stderr, "cmd_arr %d : %s\n", cmdIndex, cmd_arr[cmdIndex][0]);
+    // assert(0);
+    cmdIndex++;
+    DynArray_map(oTokens, freeToken, NULL);
+    DynArray_free(oTokens);
+    free(array);
+  }
+
+  if(!strcmp(command_arr[0], "setenv")||!strcmp(command_arr[0], "unsetenv")||!strcmp(command_arr[0], "cd")||!strcmp(command_arr[0], "exit"))
+  {
+    builtin_Execute(argc, command_arr[0], argv, filepath);
+    return EXIT_SUCCESS;
   }
 
   // refresh cmdIndex
@@ -206,19 +218,9 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
           close(pipesfds[i]);
       }
 
-      fprintf(stdout, "%s", cmd_arr[cmdIndex]);
+      // cd does not use pipes
 
-      if(!strcmp(command_arr[cmdIndex], "setenv")||!strcmp(command_arr[cmdIndex], "unsetenv")||!strcmp(command_arr[cmdIndex], "cd")||!strcmp(command_arr[cmdIndex], "exit"))
-      {
-        exit(EXIT_FAILURE); // to goto the parent process.
-      }
-      Execute(argc, cmd_arr[cmdIndex][0], cmd_arr[cmdIndex]); // A|B|C, A만 들어감
-      //ls a.txt
-      //["ls", "a.txt"]
-      //ls | grep a.txt
-      //["ls"]
-      //["grep", "a.txt"]
-      //["grep a.txt"]
+      Execute(argc, command_arr[cmdIndex], cmd_arr[cmdIndex]); // A|B|C, A만 들어감
 
     }
     else if(pid < 0)
@@ -227,17 +229,21 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
           exit(EXIT_FAILURE);
     }
 
-    wait(&status);
-    builtin_Execute(argc, command_arr[cmdIndex], cmd_arr[cmdIndex], filepath);
     cmdIndex++;
   }
-
-  /* parent closes all of its copies at the end */
   for(int i = 0; i < 2 * numPipes; i++ )
   {
       close(pipesfds[i]);
   }
-  return 1;
+  for(int i = 0; i < numPipes + 1; i++)
+  {
+    wait(&status);
+  }
+
+  // fprintf(stderr, "finished\n");
+  /* parent closes all of its copies at the end */
+
+  return EXIT_SUCCESS;
 }
 
 int Process(FILE *fp, char *filepath)

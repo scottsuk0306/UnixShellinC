@@ -57,7 +57,7 @@ int ish_cd(int argc, char **args, char *filepath)
     }
   }
   else{
-    fprintf(stderr, "%s: cd takes one error\n", filepath);
+    fprintf(stderr, "%s: cd takes one parameter\n", filepath);
     return EXIT_FAILURE;
   }
   return EXIT_SUCCESS;
