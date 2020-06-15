@@ -5,9 +5,6 @@
 
 extern char **environ;
 
-enum { FALSE, TRUE };
-
-
 /*
   Builtin function implementations.
 */
@@ -17,12 +14,12 @@ int ish_setenv(int argc, char **args, char *filepath)
   if(argc == 1)
   {
     fprintf(stderr, "%s: setenv takes one or two parameters\n", filepath);
-    return FALSE;
+    return EXIT_FAILURE;
   }
   else if(argc >= 4)
   {
     fprintf(stderr, "%s: setenv takes one or two parameters\n", filepath);
-    return FALSE;
+    return EXIT_FAILURE;
   }
   char *name = args[1];
   char *value = "";
@@ -31,7 +28,7 @@ int ish_setenv(int argc, char **args, char *filepath)
     value = args[2];
   }
   setenv(name, value, 0);
-  return TRUE;
+  return EXIT_SUCCESS;
 }
 
 int ish_unsetenv(int argc, char **args, char *filepath)
@@ -40,11 +37,11 @@ int ish_unsetenv(int argc, char **args, char *filepath)
   if(argc != 2)
   {
     fprintf(stderr, "%s: unsetenv takes one parameter\n", filepath);
-    return FALSE;
+    return EXIT_FAILURE;
   }
   char *name = args[1];
   unsetenv(name);
-  return TRUE;
+  return EXIT_SUCCESS;
 }
 
 
@@ -57,14 +54,14 @@ int ish_cd(int argc, char **args, char *filepath)
     if(chdir(args[1]) == -1)
     {
       fprintf(stderr, "%s: No such file or directory\n", filepath);
-      return FALSE; // Magic number. Has to be changed
+      return EXIT_FAILURE; // Magic number. Has to be changed
     }
   }
   else{
     fprintf(stderr, "%s: cd takes one error\n", filepath);
-    return FALSE;
+    return EXIT_FAILURE;
   }
-  return TRUE;
+  return EXIT_SUCCESS;
 }
 
 int ish_exit(void)

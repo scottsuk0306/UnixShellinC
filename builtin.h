@@ -10,12 +10,6 @@ extern char **environ;
 /*
   List of builtin commands, followed by their corresponding functions.
 */
-char *builtin_str[] = {
-  "setenv",
-  "unsetenv",
-  "cd",
-  "exit"
-};
 
 int ish_setenv(int argc, char **args, char *filepath);
 
