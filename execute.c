@@ -170,18 +170,18 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
       }
   }
 
-  while(cmd_arr[cmdIndex] != NULL)
+  while(cmdIndex < numPipes + 1)
   {
     fflush(NULL); // Your program should call fflush(NULL) before each call of fork to clear all I/O buffers.
     pid = fork();
     if(pid == 0)
     {
-      /* child gets input from the previous command,
-          if it's not the first command */
+
       pfRet = signal(SIGINT, SIG_DFL);
       pfRet = signal(SIGQUIT, SIG_DFL);
 
-
+      /* child gets input from the previous command,
+          if it's not the first command */
       if(cmdIndex != 0)
       {
           if(dup2(pipesfds[(cmdIndex-1)*2], 0) < 0)
@@ -201,11 +201,12 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
           }
       }
 
-
       for(int i = 0; i < 2*numPipes; i++)
       {
           close(pipesfds[i]);
       }
+
+      fprintf(stdout, "%s", cmd_arr[cmdIndex]);
 
       if(!strcmp(command_arr[cmdIndex], "setenv")||!strcmp(command_arr[cmdIndex], "unsetenv")||!strcmp(command_arr[cmdIndex], "cd")||!strcmp(command_arr[cmdIndex], "exit"))
       {
@@ -225,6 +226,7 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
           fprintf(stderr, "%s: %s\n",filepath,strerror(errno));
           exit(EXIT_FAILURE);
     }
+
     wait(&status);
     builtin_Execute(argc, command_arr[cmdIndex], cmd_arr[cmdIndex], filepath);
     cmdIndex++;

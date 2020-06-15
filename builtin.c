@@ -4,7 +4,6 @@
 #include <unistd.h>
 
 extern char **environ;
-
 /*
   Builtin function implementations.
 */
