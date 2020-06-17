@@ -5,4 +5,6 @@ Currently working on input for special characters: "<", ">"
 
 Have to solve errors when compiled with gcc209.
 
+Have to make makefile.
+
 Seeking better ways for modularization.
