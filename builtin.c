@@ -4,9 +4,12 @@
 #include <unistd.h>
 
 extern char **environ;
+
 /*
   Builtin function implementations.
 */
+
+/*--------------------------------------------------------------------*/
 
 int ish_setenv(int argc, char **args, char *filepath)
 {
@@ -30,6 +33,8 @@ int ish_setenv(int argc, char **args, char *filepath)
   return EXIT_SUCCESS;
 }
 
+/*--------------------------------------------------------------------*/
+
 int ish_unsetenv(int argc, char **args, char *filepath)
 {
   if(argc != 2)
@@ -42,6 +47,7 @@ int ish_unsetenv(int argc, char **args, char *filepath)
   return EXIT_SUCCESS;
 }
 
+/*--------------------------------------------------------------------*/
 
 int ish_cd(int argc, char **args, char *filepath)
 {
@@ -66,3 +72,5 @@ int ish_exit(void)
 {
   exit(0);
 }
+
+/*--------------------------------------------------------------------*/

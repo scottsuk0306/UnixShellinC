@@ -16,8 +16,6 @@ enum {MAX_LINE_SIZE = 1024};
 
 char * filepath; // current file name (in this case, ./ish)
 
-// pid_t wait(int *status);
-// pid_t waitpid(pid_t pid, int *status, int options);
 
 int main(int argc, char **argv)
 {

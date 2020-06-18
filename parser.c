@@ -1,10 +1,3 @@
-/*--------------------------------------------------------------------*/
-/* dfa.c                                                              */
-/* Original Author: Bob Dondero                                       */
-/* Illustrate lexical analysis using a deterministic finite state     */
-/* automaton (DFA)                                                    */
-/*--------------------------------------------------------------------*/
-
 #include "dynarray.h"
 #include <ctype.h>
 #include <stdio.h>
@@ -747,8 +740,3 @@ int test(char *filepath)
 
    return 0;
 }
-
-// int main(int argc, char **argv)
-// {
-//   test(argv[0]);
-// }

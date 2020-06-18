@@ -10,6 +10,7 @@
 #include "parser.h"
 #include "builtin.h"
 #include "execute.h"
+#include "dynarray.h"
 
 enum TokenType {TOKEN_WORD, TOKEN_LINE, TOKEN_SPECIAL};
 
@@ -30,27 +31,40 @@ struct Token
    /* The string which is the token's value. */
 };
 
+/*--------------------------------------------------------------------*/
+
+/* If Ctrl-\ is typed within 5 seconds, terminate the process */
 static void quitHandler2(int iSig)
 {
    exit(EXIT_FAILURE);
 }
 
+/*--------------------------------------------------------------------*/
+
+/* User type Ctrl-\ once */
 static void quitHandler(int iSig)
 {
   void (*pfRet) (int);
   pfRet = signal(SIGQUIT, quitHandler2);
+  if(pfRet == SIG_ERR) exit(EXIT_FAILURE);
   alarm(5);
   fprintf(stdout,"\nType CTRl-\\ again within 5 seconds to exit.\n");
   fprintf(stderr, "%% ");
 }
 
+/*--------------------------------------------------------------------*/
+
+/* User didn't type Ctrl-\ within 5 seconds */
 static void alarmHandler(int iSig)
 {
   void (*pfRet) (int);
   pfRet = signal(SIGQUIT, quitHandler);
+  if(pfRet == SIG_ERR) exit(EXIT_FAILURE);
 }
 
+/*--------------------------------------------------------------------*/
 
+/* Implement builtin execution */
 static int builtin_Execute(int argc, const char* command, char **new_argv, char *filepath)
 {
   if(!strcmp(command, "setenv"))
@@ -77,6 +91,9 @@ static int builtin_Execute(int argc, const char* command, char **new_argv, char 
   return -1; // command is not a builtin command
 }
 
+/*--------------------------------------------------------------------*/
+
+/* Implement execution */
 static int Execute(int argc, const char* command, char **new_argv)
 {
   execvp(command, new_argv);
@@ -86,8 +103,9 @@ static int Execute(int argc, const char* command, char **new_argv)
   exit(EXIT_FAILURE);
 }
 
-// A < B | C > D
+/*--------------------------------------------------------------------*/
 
+/* If '<' token exists, redirect standard input */
 static void InputRD(const char *fd)
 {
   int iFd;
@@ -100,20 +118,27 @@ static void InputRD(const char *fd)
     exit(EXIT_FAILURE);
   }
   iRet = dup2(iFd, STDIN_FILENO);
+  if (iRet == -1) exit(EXIT_FAILURE);
   iRet = close(iFd);
 }
 
+/*--------------------------------------------------------------------*/
+
+/* If '>' token exists, redirect standard output */
 static void OutputRD(const char *fd)
 {
-  // assert(0);
   int iFd;
   int iRet;
 
   iFd = creat(fd, S_IRWXU);
   iRet = dup2(iFd, STDOUT_FILENO);
+  if (iRet == -1) exit(EXIT_FAILURE);
   iRet = close(iFd);
 }
 
+/*--------------------------------------------------------------------*/
+
+/* If '|' token exists, implement execution with this function */
 static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath) // builtin_Execute + Execute + pipe
 {
   int status;
@@ -127,6 +152,7 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
   pfRet = signal(SIGINT, SIG_IGN);
   pfRet = signal(SIGQUIT, quitHandler);
   pfRet = signal(SIGALRM, alarmHandler);
+  if(pfRet == SIG_ERR) exit(EXIT_FAILURE);
 
   for(int i = 0; i < argc; i++)
   {
@@ -204,15 +230,11 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
       {
         new_argv[cmdIndex][new_argc++] = strdup(array[i] -> pcValue);
       }
-      //fprintf(stderr, "new_argv %d : %s\n", i, new_argv[i]);
     }
     new_argv[cmdIndex][new_argc] = NULL;
-    // char * command = new_argv[0];
 
     cmd_arr[cmdIndex] = new_argv[cmdIndex];
     command_arr[cmdIndex] = strdup(new_argv[cmdIndex][0]);
-    //fprintf(stderr, "cmd_arr %d : %s\n", cmdIndex, cmd_arr[cmdIndex][0]);
-    // assert(0);
     cmdIndex++;
     DynArray_map(oTokens, freeToken, NULL);
     DynArray_free(oTokens);
@@ -249,7 +271,7 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
 
       pfRet = signal(SIGINT, SIG_DFL);
       pfRet = signal(SIGQUIT, SIG_DFL);
-
+      if(pfRet == SIG_ERR) exit(EXIT_FAILURE);
       /* child gets input from the previous command,
           if it's not the first command */
       if(cmdIndex != 0)
@@ -304,12 +326,14 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
     wait(&status);
   }
 
-  // fprintf(stderr, "finished\n");
   /* parent closes all of its copies at the end */
 
   return EXIT_SUCCESS;
 }
 
+/*--------------------------------------------------------------------*/
+
+/* Get input from stdin or file and implement Unix processes */
 int Process(FILE *fp, char *filepath)
 {
   char acLine[MAX_LINE_SIZE];
@@ -320,6 +344,7 @@ int Process(FILE *fp, char *filepath)
   pfRet = signal(SIGINT, SIG_IGN);
   pfRet = signal(SIGQUIT, quitHandler);
   pfRet = signal(SIGALRM, alarmHandler);
+  if(pfRet == SIG_ERR) exit(EXIT_FAILURE);
   while(TRUE)
   {
     if(fp == NULL)
@@ -366,6 +391,7 @@ int Process(FILE *fp, char *filepath)
       /* in child */
       pfRet = signal(SIGINT, SIG_DFL);
       pfRet = signal(SIGQUIT, SIG_DFL);
+      if(pfRet == SIG_ERR) exit(EXIT_FAILURE);
       if(!strcmp(command, "setenv")||!strcmp(command, "unsetenv")||!strcmp(command, "cd")||!strcmp(command, "exit"))
       {
         exit(EXIT_FAILURE); // to goto the parent process.
@@ -390,6 +416,8 @@ int Process(FILE *fp, char *filepath)
   }
 }
 
+/*--------------------------------------------------------------------*/
+
 int Process_with_pipe(FILE *fp, char *filepath)
 {
   char acLine[MAX_LINE_SIZE];
@@ -398,6 +426,7 @@ int Process_with_pipe(FILE *fp, char *filepath)
   pfRet = signal(SIGINT, SIG_IGN);
   pfRet = signal(SIGQUIT, quitHandler);
   pfRet = signal(SIGALRM, alarmHandler);
+  if(pfRet == SIG_ERR) exit(EXIT_FAILURE);
   while(TRUE)
   {
     if(fp == NULL)
@@ -442,3 +471,5 @@ int Process_with_pipe(FILE *fp, char *filepath)
     free(new_argv);
   }
 }
+
+/*--------------------------------------------------------------------*/

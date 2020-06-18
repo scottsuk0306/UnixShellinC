@@ -12,6 +12,14 @@
 #include "builtin.h"
 #include "signal.h"
 
+/*--------------------------------------------------------------------*/
+
+/* ish loop without special characters like "|", "<", and ">" */
 int Process(FILE *fp, char *filepath);
 
+/*--------------------------------------------------------------------*/
+
+/* ish loop with special characters like "|", "<", and ">" */
 int Process_with_pipe(FILE *fp, char *filepath);
+
+/*--------------------------------------------------------------------*/
