@@ -86,11 +86,41 @@ static int Execute(int argc, const char* command, char **new_argv)
   exit(EXIT_FAILURE);
 }
 
-static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath)
+// A < B | C > D
+
+static void InputRD(const char *fd)
+{
+  int iFd;
+  int iRet;
+
+  iFd = open(fd, O_RDONLY);
+  if(iFd == -1)
+  {
+    fprintf(stderr, "No such file or directory\n");
+    exit(EXIT_FAILURE);
+  }
+  iRet = dup2(iFd, STDIN_FILENO);
+  iRet = close(iFd);
+}
+
+static void OutputRD(const char *fd)
+{
+  assert(0);
+  int iFd;
+  int iRet;
+
+  iFd = open(fd, O_WRONLY);
+  if(iFd == -1) iFd = creat(fd, O_WRONLY);
+  iRet = dup2(iFd, STDOUT_FILENO);
+  iRet = close(iFd);
+}
+
+static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath) // builtin_Execute + Execute + pipe
 {
   int status;
   int numPipes = 0;
   pid_t pid;
+
 
   // first token for each cmd (line)
   // for example, if ls | grep .txt, then command[2] = ls, grep
@@ -115,11 +145,15 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
     ptr = strtok(NULL, "|");
     cmdIndex++;
   }
+  int input_RD[numPipes + 1];
+  int output_RD[numPipes + 1];
 
   cmdIndex = 0;
 
   char **cmd_arr[numPipes+1];
   char *command_arr[numPipes+1];
+  char *filename_in;
+  char *filename_out;
 
   char **new_argv[numPipes+1];
   for(int i = 0; i < numPipes + 1; i++)
@@ -142,15 +176,37 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
     new_argv[cmdIndex] = (char **)malloc(sizeof(char *)*(DynArray_getLength(oTokens)+1));
     // +1 because new_argv is a string. It has to end with NULL.
     struct Token ** array = (struct Token**)malloc(sizeof(struct Token*)*(DynArray_getLength(oTokens)));
+
+    input_RD[cmdIndex] = 0;
+    output_RD[cmdIndex] = 0;
+    int new_argc = 0;
     for(int i = 0; i < argc; i++)
     {
       array[i] = DynArray_get(oTokens,i);
-      new_argv[cmdIndex][i] = strdup(array[i] -> pcValue);
+      if(!strcmp(array[i] -> pcValue, "<"))
+      {
+        input_RD[cmdIndex] = 1;
+        filename_in = strdup(array[i+1] -> pcValue);
+        i++; // filename is skipped
+      }
+      else if(!strcmp(array[i] -> pcValue, ">"))
+      {
+        output_RD[cmdIndex] = 1;
+        filename_out = strdup(array[i+1] -> pcValue);
+        i++; // filename is skipped
+      }
+      else
+      {
+        new_argv[cmdIndex][new_argc++] = strdup(array[i] -> pcValue);
+      }
       //fprintf(stderr, "new_argv %d : %s\n", i, new_argv[i]);
     }
-    new_argv[cmdIndex][argc] = NULL;
+    new_argv[cmdIndex][new_argc] = NULL;
     // char * command = new_argv[0];
-
+    for(int i = 0; i < new_argc; i++)
+    {
+      fprintf(stderr, "%s\n", new_argv[cmdIndex][i]);
+    }
     cmd_arr[cmdIndex] = new_argv[cmdIndex];
     command_arr[cmdIndex] = strdup(new_argv[cmdIndex][0]);
     //fprintf(stderr, "cmd_arr %d : %s\n", cmdIndex, cmd_arr[cmdIndex][0]);
@@ -196,7 +252,7 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
           if it's not the first command */
       if(cmdIndex != 0)
       {
-          if(dup2(pipesfds[(cmdIndex-1)*2], 0) < 0)
+          if(dup2(pipesfds[(cmdIndex-1)*2], STDIN_FILENO) < 0)
           {
             fprintf(stderr, "%s: %s\n",filepath,strerror(errno));
             exit(EXIT_FAILURE);
@@ -206,7 +262,7 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
           the last command */
       if(cmdIndex != numPipes)
       {
-          if(dup2(pipesfds[cmdIndex*2+1], 1) < 0)
+          if(dup2(pipesfds[cmdIndex*2+1], STDOUT_FILENO) < 0)
           {
             fprintf(stderr, "%s: %s\n",filepath,strerror(errno));
             exit(EXIT_FAILURE);
@@ -219,9 +275,15 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
       }
 
       // cd does not use pipes
-
+      if (input_RD[cmdIndex]) //input redirection
+      {
+        InputRD(filename_in);
+      }
+      if(output_RD[cmdIndex])
+      {
+        OutputRD(filename_out);
+      }
       Execute(argc, command_arr[cmdIndex], cmd_arr[cmdIndex]); // A|B|C, A만 들어감
-
     }
     else if(pid < 0)
     {

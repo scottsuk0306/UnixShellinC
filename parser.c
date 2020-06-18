@@ -16,7 +16,7 @@
 
 enum {MAX_LINE_SIZE = 1024};
 
-enum TokenType {TOKEN_WORD, TOKEN_LINE};
+enum TokenType {TOKEN_WORD, TOKEN_LINE, TOKEN_SPECIAL}; // TOKEN_SPECIAL
 
 /*--------------------------------------------------------------------*/
 
@@ -66,6 +66,19 @@ static void printLineToken(void *pvItem, void *pvExtra)
 {
    struct Token *psToken = (struct Token*)pvItem;
    if (psToken->eType == TOKEN_LINE)
+      printf("%s ", psToken->pcValue);
+}
+
+/*--------------------------------------------------------------------*/
+
+static void printSpecialToken(void *pvItem, void *pvExtra)
+
+/* Print token pvItem to stdout iff it is a Line.  pvExtra is
+   unused. */
+
+{
+   struct Token *psToken = (struct Token*)pvItem;
+   if (psToken->eType == TOKEN_SPECIAL)
       printf("%s ", psToken->pcValue);
 }
 
@@ -125,7 +138,7 @@ int lexLine(const char *pcLine, DynArray_T oTokens, char *filepath)
    pcLine. */
 
 {
-   enum LexState {STATE_START, STATE_IN_WORD, STATE_IN_COMM, STATE_IN_LINE};
+   enum LexState {STATE_START, STATE_IN_WORD, STATE_IN_COMM, STATE_IN_LINE, STATE_IN_SPECIAL};
 
    enum LexState eState = STATE_START;
 
@@ -164,6 +177,12 @@ int lexLine(const char *pcLine, DynArray_T oTokens, char *filepath)
                eState = STATE_START;
 
             //else if (isalpha(c) || (c > 32 && c < 127)) // || isdigit(c)
+            else if ( c == '<' || c == '>')
+            {
+              acValue[iValueIndex++] = c;
+              eState = STATE_IN_SPECIAL;
+            }
+
             else
             {
               acValue[iValueIndex++] = c;
@@ -223,7 +242,7 @@ int lexLine(const char *pcLine, DynArray_T oTokens, char *filepath)
                eState = STATE_IN_LINE;
             }
 
-            else if ( isspace(c) || (c == '\t'))
+            else if (isspace(c) || (c == '\t'))
             {
                /* Create a WORD token. */
                acValue[iValueIndex] = '\0';
@@ -245,7 +264,28 @@ int lexLine(const char *pcLine, DynArray_T oTokens, char *filepath)
 
                eState = STATE_START;
             }
+            else if ( c == '<' || c == '>')
+            {
 
+              acValue[iValueIndex] = '\0';
+              psToken = makeToken(TOKEN_WORD, acValue);
+
+              if (psToken == NULL)
+              {
+                 fprintf(stderr, "%s: Cannot allocate memory\n", filepath);
+                 return EXIT_FAILURE;
+              }
+
+              if (! DynArray_add(oTokens, psToken))
+              {
+                 fprintf(stderr, "%s: Cannot allocate memory\n", filepath);
+                 return EXIT_FAILURE;
+              }
+
+              iValueIndex = 0;
+              acValue[iValueIndex++] = c;
+              eState = STATE_IN_SPECIAL;
+            }
             // else if (isalpha(c) || (c > 32 && c < 127))
             else
             {
@@ -266,6 +306,8 @@ int lexLine(const char *pcLine, DynArray_T oTokens, char *filepath)
                fprintf(stderr, "ERROR - unmatched quote\n");
                return EXIT_FAILURE;
             }
+
+
 
             else
             {
@@ -342,6 +384,28 @@ int lexLine(const char *pcLine, DynArray_T oTokens, char *filepath)
                eState = STATE_IN_LINE;
             }
 
+            else if ( c == '<' || c == '>')
+            {
+              acValue[iValueIndex] = '\0';
+              psToken = makeToken(TOKEN_LINE, acValue);
+
+              if (psToken == NULL)
+              {
+                 fprintf(stderr, "%s: Cannot allocate memory\n", filepath);
+                 return EXIT_FAILURE;
+              }
+
+              if (! DynArray_add(oTokens, psToken))
+              {
+                 fprintf(stderr, "%s: Cannot allocate memory\n", filepath);
+                 return EXIT_FAILURE;
+              }
+
+              iValueIndex = 0;
+              acValue[iValueIndex++] = c;
+              eState = STATE_IN_SPECIAL;
+            }
+
             else if ( isspace(c) || (c == '\t'))
             {
                /* Create a LINE token. */
@@ -390,6 +454,141 @@ int lexLine(const char *pcLine, DynArray_T oTokens, char *filepath)
 
             break;
 
+          case STATE_IN_SPECIAL:
+            if ((c == '\n') || (c == '\0'))
+            {
+               /* Create a SPECIAL token. */
+               acValue[iValueIndex] = '\0';
+               psToken = makeToken(TOKEN_SPECIAL, acValue);
+
+               if (psToken == NULL)
+               {
+                  fprintf(stderr, "%s: Cannot allocate memory\n", filepath);
+                  return EXIT_FAILURE;
+               }
+
+               if (! DynArray_add(oTokens, psToken))
+               {
+                  fprintf(stderr, "%s: Cannot allocate memory\n", filepath);
+                  return EXIT_FAILURE;
+               }
+               iValueIndex = 0;
+
+               return EXIT_SUCCESS;
+            }
+
+            else if (c == '"')
+            {
+               acValue[iValueIndex] = '\0';
+               psToken = makeToken(TOKEN_SPECIAL, acValue);
+
+               if (psToken == NULL)
+               {
+                  fprintf(stderr, "%s: Cannot allocate memory\n", filepath);
+                  return EXIT_FAILURE;
+               }
+
+               if (! DynArray_add(oTokens, psToken))
+               {
+                  fprintf(stderr, "%s: Cannot allocate memory\n", filepath);
+                  return EXIT_FAILURE;
+               }
+
+               iValueIndex = 0;
+
+               eState = STATE_IN_COMM;
+            }
+
+            else if (c == '|')
+            {
+               /* Create a LINE token. */
+               acValue[iValueIndex] = '\0';
+               psToken = makeToken(TOKEN_SPECIAL, acValue);
+               if (psToken == NULL)
+               {
+                  fprintf(stderr, "%s: Cannot allocate memory\n", filepath);
+                  return EXIT_FAILURE;
+               }
+
+               if (! DynArray_add(oTokens, psToken))
+               {
+                  fprintf(stderr, "%s: Cannot allocate memory\n", filepath);
+                  return EXIT_FAILURE;
+               }
+
+               iValueIndex = 0;
+               acValue[iValueIndex++] = c;
+               eState = STATE_IN_LINE;
+            }
+
+            else if ( isspace(c) || (c == '\t'))
+            {
+               /* Create a LINE token. */
+               acValue[iValueIndex] = '\0';
+               psToken = makeToken(TOKEN_SPECIAL, acValue);
+
+               if (psToken == NULL)
+               {
+                  fprintf(stderr, "%s: Cannot allocate memory\n", filepath);
+                  return EXIT_FAILURE;
+               }
+
+               if (! DynArray_add(oTokens, psToken))
+               {
+                  fprintf(stderr, "%s: Cannot allocate memory\n", filepath);
+                  return EXIT_FAILURE;
+               }
+
+               iValueIndex = 0;
+
+               eState = STATE_START;
+            }
+
+            else if ( c == '<' || c == '>')
+            {
+
+              acValue[iValueIndex] = '\0';
+              psToken = makeToken(TOKEN_SPECIAL, acValue);
+
+              if (psToken == NULL)
+              {
+                 fprintf(stderr, "%s: Cannot allocate memory\n", filepath);
+                 return EXIT_FAILURE;
+              }
+
+              if (! DynArray_add(oTokens, psToken))
+              {
+                 fprintf(stderr, "%s: Cannot allocate memory\n", filepath);
+                 return EXIT_FAILURE;
+              }
+              iValueIndex = 0;
+              eState = STATE_IN_SPECIAL;
+            }
+            //else if (isalpha(c) || (c > 32 && c < 127))
+            else
+            {
+               /* Create a LINE token. */
+               acValue[iValueIndex] = '\0';
+               psToken = makeToken(TOKEN_SPECIAL, acValue);
+
+               if (psToken == NULL)
+               {
+                  fprintf(stderr, "%s: Cannot allocate memory\n", filepath);
+                  return EXIT_FAILURE;
+               }
+
+               if (! DynArray_add(oTokens, psToken))
+               {
+                  fprintf(stderr, "%s: Cannot allocate memory\n", filepath);
+                  return EXIT_FAILURE;
+               }
+               iValueIndex = 0;
+               acValue[iValueIndex++] = c;
+               eState = STATE_IN_WORD;
+            }
+
+            break;
+
           default:
             assert(0);
       }
@@ -409,6 +608,10 @@ Return 1 if successful. Otherwise, return 0.
 
 {
   assert(oTokens != NULL);
+  int num_sprhs = 0; // num of ">"
+  int num_splhs = 0; // num of "<"
+  // only A < B | C > D is possible
+  int num_pipe = 0;
 
   struct Token ** array = (struct Token**)malloc(DynArray_getLength(oTokens)*sizeof(struct Token*));
   if (array == NULL)
@@ -420,10 +623,49 @@ Return 1 if successful. Otherwise, return 0.
   {
     array[i] = DynArray_get(oTokens,i);
   }
+  /* Search for pipe, speial errors */
   for(int i = 0; i < DynArray_getLength(oTokens); i++)
   {
-    if(array[i] -> eType == TOKEN_LINE)
+    /* Erros */
+    if(array[i] -> eType == TOKEN_LINE || array[i] -> eType == TOKEN_SPECIAL)
     {
+
+      if(!strcmp(array[i] -> pcValue, "|"))
+      {
+        num_pipe++;
+        if(num_sprhs == 1) // "A > B | ~~" does not work
+        {
+          fprintf(stderr, "%s: Multiple redirection of standard in/out\n",filepath);
+          free(array);
+          return EXIT_FAILURE;
+        }
+      }
+      if(!strcmp(array[i] -> pcValue, "<"))
+      {
+        if(num_pipe)
+        {
+          fprintf(stderr, "%s: Multiple redirection of standard in/out\n",filepath);
+          free(array);
+          return EXIT_FAILURE;
+        }
+        num_splhs++;
+        if(num_splhs==2)
+        {
+          fprintf(stderr, "%s: Multiple redirection of standard in/out\n",filepath);
+          free(array);
+          return EXIT_FAILURE;
+        }
+      }
+      if(!strcmp(array[i] -> pcValue, ">"))
+      {
+        num_sprhs++;
+        if(num_sprhs==2)
+        {
+          fprintf(stderr, "%s: Multiple redirection of standard in/out\n",filepath);
+          free(array);
+          return EXIT_FAILURE;
+        }
+      }
       if(i == 0) // first is |
       {
         fprintf(stderr, "%s: Missing command name\n",filepath);
@@ -432,11 +674,11 @@ Return 1 if successful. Otherwise, return 0.
       }
       if(i == DynArray_getLength(oTokens)-1) // last is |
       {
-        fprintf(stderr, "%s: Missing command name\n",filepath);
+        fprintf(stderr, "%s: Pipe or redirection destination not specified\n",filepath);
         free(array);
         return EXIT_FAILURE;
       }
-      else if(array[i+1] -> eType == TOKEN_LINE) // command should follow after |, no ||
+      else if(array[i+1] -> eType == TOKEN_LINE || array[i+1] -> eType == TOKEN_SPECIAL) // command should follow after |, no ||
       {
         fprintf(stderr, "%s: Pipe or redirection destination not specified\n",filepath);
         free(array);
@@ -473,14 +715,18 @@ int test(char *filepath)
       }
 
       iSuccessful = lexLine(acLine, oTokens, filepath);
-      if (iSuccessful)
+      if(!iSuccessful)
       {
-          printf("Words:  ");
+          printf("Words: ");
           DynArray_map(oTokens, printWordToken, NULL);
           printf("\n");
 
           printf("Line: ");
           DynArray_map(oTokens, printLineToken, NULL);
+          printf("\n");
+
+          printf("Special: ");
+          DynArray_map(oTokens, printSpecialToken, NULL);
           printf("\n");
 
           printf("Result: \n");
@@ -501,3 +747,8 @@ int test(char *filepath)
 
    return 0;
 }
+
+// int main(int argc, char **argv)
+// {
+//   test(argv[0]);
+// }

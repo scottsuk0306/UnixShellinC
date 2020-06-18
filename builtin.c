@@ -32,7 +32,6 @@ int ish_setenv(int argc, char **args, char *filepath)
 
 int ish_unsetenv(int argc, char **args, char *filepath)
 {
-  // name is undeclared
   if(argc != 2)
   {
     fprintf(stderr, "%s: unsetenv takes one parameter\n", filepath);
@@ -53,7 +52,7 @@ int ish_cd(int argc, char **args, char *filepath)
     if(chdir(args[1]) == -1)
     {
       fprintf(stderr, "%s: No such file or directory\n", filepath);
-      return EXIT_FAILURE; // Magic number. Has to be changed
+      return EXIT_FAILURE;
     }
   }
   else{

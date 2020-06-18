@@ -30,13 +30,11 @@ int main(int argc, char **argv)
   filepath = argv[0];
   FILE * fp;
   fp = fopen(".ishrc","r");
-  //fprintf(stdout,"%d",fp==NULL);
+  /* If there is file named .ishrc */
   if(fp)
   {
-    //fprintf(stdout,"hello");
     Process_with_pipe(fp, filepath);
     fclose(fp);
   }
-  /* If there is file named .ishrc */
   Process_with_pipe(NULL, filepath);
 }
