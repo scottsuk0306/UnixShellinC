@@ -11,7 +11,7 @@
 #include "builtin.h"
 #include "execute.h"
 
-enum TokenType {TOKEN_WORD, TOKEN_LINE};
+enum TokenType {TOKEN_WORD, TOKEN_LINE, TOKEN_SPECIAL};
 
 enum {MAX_LINE_SIZE = 1024};
 
@@ -93,7 +93,7 @@ static void InputRD(const char *fd)
   int iFd;
   int iRet;
 
-  iFd = open(fd, O_RDONLY);
+  iFd = open(fd, O_RDWR, S_IRWXU);
   if(iFd == -1)
   {
     fprintf(stderr, "No such file or directory\n");
@@ -105,12 +105,11 @@ static void InputRD(const char *fd)
 
 static void OutputRD(const char *fd)
 {
-  assert(0);
+  // assert(0);
   int iFd;
   int iRet;
 
-  iFd = open(fd, O_WRONLY);
-  if(iFd == -1) iFd = creat(fd, O_WRONLY);
+  iFd = creat(fd, S_IRWXU);
   iRet = dup2(iFd, STDOUT_FILENO);
   iRet = close(iFd);
 }
@@ -180,20 +179,26 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
     input_RD[cmdIndex] = 0;
     output_RD[cmdIndex] = 0;
     int new_argc = 0;
+
     for(int i = 0; i < argc; i++)
     {
       array[i] = DynArray_get(oTokens,i);
+    }
+    for(int i = 0; i < argc; i++)
+    {
       if(!strcmp(array[i] -> pcValue, "<"))
       {
         input_RD[cmdIndex] = 1;
         filename_in = strdup(array[i+1] -> pcValue);
-        i++; // filename is skipped
       }
       else if(!strcmp(array[i] -> pcValue, ">"))
       {
         output_RD[cmdIndex] = 1;
         filename_out = strdup(array[i+1] -> pcValue);
-        i++; // filename is skipped
+      }
+      else if(i > 1 && array[i-1] -> eType == TOKEN_SPECIAL)
+      {
+        continue;
       }
       else
       {
@@ -203,10 +208,7 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
     }
     new_argv[cmdIndex][new_argc] = NULL;
     // char * command = new_argv[0];
-    for(int i = 0; i < new_argc; i++)
-    {
-      fprintf(stderr, "%s\n", new_argv[cmdIndex][i]);
-    }
+
     cmd_arr[cmdIndex] = new_argv[cmdIndex];
     command_arr[cmdIndex] = strdup(new_argv[cmdIndex][0]);
     //fprintf(stderr, "cmd_arr %d : %s\n", cmdIndex, cmd_arr[cmdIndex][0]);
