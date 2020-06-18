@@ -394,8 +394,6 @@ int Process_with_pipe(FILE *fp, char *filepath)
 {
   char acLine[MAX_LINE_SIZE];
   DynArray_T oTokens;
-  pid_t pid;
-  int status;
   void (*pfRet) (int);
   pfRet = signal(SIGINT, SIG_IGN);
   pfRet = signal(SIGQUIT, quitHandler);
@@ -437,7 +435,6 @@ int Process_with_pipe(FILE *fp, char *filepath)
       new_argv[i] = array[i] -> pcValue;
     }
     new_argv[argc] = NULL;
-    const char * command = new_argv[0];
     Execute_with_pipe(argc, new_argv, acLine, filepath);
     DynArray_map(oTokens, freeToken, NULL);
     DynArray_free(oTokens);
