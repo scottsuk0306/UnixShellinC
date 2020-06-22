@@ -51,7 +51,8 @@ int ish_unsetenv(int argc, char **args, char *filepath)
 
 int ish_cd(int argc, char **args, char *filepath)
 {
-  if(argc == 1){
+  if(argc == 1)
+  {
     chdir(getenv("HOME"));
   }
   else if(argc == 2){

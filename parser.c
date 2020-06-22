@@ -296,11 +296,9 @@ int lexLine(const char *pcLine, DynArray_T oTokens, char *filepath)
 
             else if (c == '\0')
             {
-               fprintf(stderr, "ERROR - unmatched quote\n");
+               fprintf(stderr, "%s: Could not find quote pair\n",filepath);
                return EXIT_FAILURE;
             }
-
-
 
             else
             {
@@ -687,7 +685,6 @@ Return 1 if successful. Otherwise, return 0.
 /*--------------------------------------------------------------------*/
 
 int test(char *filepath)
-
 /* Function that test lexical and syntatic analysis.
   Read a line from stdin, and write to stdout each number and word
    that it contains.  Repeat until EOF.  Return 0 iff successful. */
@@ -704,7 +701,7 @@ int test(char *filepath)
       if (oTokens == NULL)
       {
          fprintf(stderr, "Cannot allocate memory\n");
-         exit(EXIT_FAILURE);
+         //exit(EXIT_FAILURE);
       }
 
       iSuccessful = lexLine(acLine, oTokens, filepath);

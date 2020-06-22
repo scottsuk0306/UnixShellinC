@@ -111,7 +111,7 @@ static void InputRD(const char *fd)
   int iFd;
   int iRet;
 
-  iFd = open(fd, O_RDWR, S_IRWXU);
+  iFd = open(fd, O_RDWR );
   if(iFd == -1)
   {
     fprintf(stderr, "No such file or directory\n");
@@ -130,7 +130,7 @@ static void OutputRD(const char *fd)
   int iFd;
   int iRet;
 
-  iFd = creat(fd, S_IRWXU);
+  iFd = creat(fd, 0600);
   iRet = dup2(iFd, STDOUT_FILENO);
   if (iRet == -1) exit(EXIT_FAILURE);
   iRet = close(iFd);
@@ -139,12 +139,11 @@ static void OutputRD(const char *fd)
 /*--------------------------------------------------------------------*/
 
 /* If '|' token exists, implement execution with this function */
-static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath) // builtin_Execute + Execute + pipe
+static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath, DynArray_T oTokens) // builtin_Execute + Execute + pipe
 {
   int status;
   int numPipes = 0;
   pid_t pid;
-
 
   // first token for each cmd (line)
   // for example, if ls | grep .txt, then command[2] = ls, grep
@@ -154,22 +153,79 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
   pfRet = signal(SIGALRM, alarmHandler);
   if(pfRet == SIG_ERR) exit(EXIT_FAILURE);
 
+
+  struct Token ** pipe_count = (struct Token**)malloc(sizeof(struct Token*)*(DynArray_getLength(oTokens)));
+  if(pipe_count == NULL)
+  {
+    fprintf(stderr,"%s: Cannot allocate memory\n", filepath);
+    exit(EXIT_FAILURE);
+  }
+  int pExits[argc+1];
+  int spExits[argc+1];
   for(int i = 0; i < argc; i++)
   {
-    if(strcmp(argv[i], "|") == 0) numPipes++;
+    pipe_count[i] = DynArray_get(oTokens, i);
+    if(pipe_count[i] -> eType == TOKEN_LINE)
+    {
+      numPipes++;
+      pExits[i] = 1;
+    }
+    else pExits[i] = 0;
   }
+  for(int i = 0; i < argc; i++)
+  {
+    if(pipe_count[i] -> eType == TOKEN_SPECIAL)
+    {
+      spExits[i] = 1;
+    }
+    else spExits[i] = 0;
+  }
+  free(pipe_count);
+  char line_arr[numPipes+1][MAX_LINE_SIZE];
+  int lineIndex = 0;
+  strcpy(line_arr[lineIndex],"\0");
+  if(strstr(argv[0], " ")||strstr(argv[0], "\t"))
+  {
+    strcat(line_arr[lineIndex],"\"");
+    strcat(line_arr[lineIndex], argv[0]);
+    strcat(line_arr[lineIndex],"\"");
 
-  char *line_arr[numPipes+2];
-  char *ptr = strtok(acLine, "|");
+  }
+  else
+  {
+    strcpy(line_arr[lineIndex], argv[0]);
+  }
+  for(int i = 1; i < argc; i++)
+  {
+    if(!strcmp(argv[i], "|") && pExits[i] == 1)
+    {
+      lineIndex++;
+      strcpy(line_arr[lineIndex], "\0");
+    }
+    else
+    {
+      strcat(line_arr[lineIndex], " ");
+      if((!strcmp(argv[i], "|"))||(!strcmp(argv[i], ">") && spExits[i]!=1)||(!strcmp(argv[i], "<") && spExits[i]!=1)||strstr(argv[i], " ")||strstr(argv[i], "\t"))
+      {
+        strcat(line_arr[lineIndex],"\"");
+        strcat(line_arr[lineIndex], argv[i]);
+        strcat(line_arr[lineIndex],"\"");
+      }
+      else
+      {
+        strcat(line_arr[lineIndex], argv[i]);
+      }
+    }
+  }
   int cmdIndex = 0;
 
-  while(ptr != NULL)
-  {
-    assert(cmdIndex <= numPipes + 1);
-    line_arr[cmdIndex] = ptr;
-    ptr = strtok(NULL, "|");
-    cmdIndex++;
-  }
+  // while(ptr != NULL)
+  // {
+  //   assert(cmdIndex <= numPipes + 1);
+  //   line_arr[cmdIndex] = ptr;
+  //   ptr = strtok(NULL, "|");
+  //   cmdIndex++;
+  // }
   int input_RD[numPipes + 1];
   int output_RD[numPipes + 1];
 
@@ -199,9 +255,18 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
 
     int argc = DynArray_getLength(oTokens);
     new_argv[cmdIndex] = (char **)malloc(sizeof(char *)*(DynArray_getLength(oTokens)+1));
+    if(new_argv[cmdIndex] == NULL)
+    {
+      fprintf(stderr,"%s: Cannot allocate memory\n", filepath);
+      exit(EXIT_FAILURE);
+    }
     // +1 because new_argv is a string. It has to end with NULL.
     struct Token ** array = (struct Token**)malloc(sizeof(struct Token*)*(DynArray_getLength(oTokens)));
-
+    if(array == NULL)
+    {
+      fprintf(stderr,"%s: Cannot allocate memory\n", filepath);
+      exit(EXIT_FAILURE);
+    }
     input_RD[cmdIndex] = 0;
     output_RD[cmdIndex] = 0;
     int new_argc = 0;
@@ -212,15 +277,25 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
     }
     for(int i = 0; i < argc; i++)
     {
-      if(!strcmp(array[i] -> pcValue, "<"))
+      if(array[i]->eType == TOKEN_SPECIAL && !strcmp(array[i] -> pcValue, "<"))
       {
         input_RD[cmdIndex] = 1;
         filename_in = strdup(array[i+1] -> pcValue);
+        if(filename_in == NULL)
+        {
+          fprintf(stderr,"%s: Cannot allocate memory\n", filepath);
+          exit(EXIT_FAILURE);
+        }
       }
-      else if(!strcmp(array[i] -> pcValue, ">"))
+      else if(array[i]->eType == TOKEN_SPECIAL && !strcmp(array[i] -> pcValue, ">"))
       {
         output_RD[cmdIndex] = 1;
         filename_out = strdup(array[i+1] -> pcValue);
+        if(filename_out == NULL)
+        {
+          fprintf(stderr,"%s: Cannot allocate memory\n", filepath);
+          exit(EXIT_FAILURE);
+        }
       }
       else if(i > 1 && array[i-1] -> eType == TOKEN_SPECIAL)
       {
@@ -229,12 +304,23 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
       else
       {
         new_argv[cmdIndex][new_argc++] = strdup(array[i] -> pcValue);
+        // if(new_argv[cmdIndex][new_argc] == NULL)
+        // {
+        //   fprintf(stderr,"%s: 7 Cannot allocate memory\n", filepath);
+        //   exit(EXIT_FAILURE);
+        // }
+
       }
     }
     new_argv[cmdIndex][new_argc] = NULL;
 
     cmd_arr[cmdIndex] = new_argv[cmdIndex];
     command_arr[cmdIndex] = strdup(new_argv[cmdIndex][0]);
+    if(command_arr[cmdIndex] == NULL)
+    {
+      fprintf(stderr,"%s: Cannot allocate memory\n", filepath);
+      exit(EXIT_FAILURE);
+    }
     cmdIndex++;
     DynArray_map(oTokens, freeToken, NULL);
     DynArray_free(oTokens);
@@ -326,8 +412,20 @@ static int Execute_with_pipe(int argc, char **argv, char *acLine, char *filepath
     wait(&status);
   }
 
+  for(int i = 0; i < numPipes + 1; i++)
+  {
+    for(int j = 0; new_argv[i][j]!=NULL; j++)
+    {
+      free(new_argv[i][j]);
+    }
+    free(new_argv[i]);
+  }
+  for(int i = 0; i < numPipes + 1; i++)
+  {
+    free(command_arr[i]);
+  }
+  //assert(0);
   /* parent closes all of its copies at the end */
-
   return EXIT_SUCCESS;
 }
 
@@ -457,16 +555,24 @@ int Process_with_pipe(FILE *fp, char *filepath)
     char **new_argv;
     int argc = DynArray_getLength(oTokens);
     new_argv = (char **)malloc(sizeof(char *)*(DynArray_getLength(oTokens)+1));
+    if(new_argv == NULL)
+    {
+      fprintf(stderr,"%s: Cannot allocate memory\n", filepath);
+      exit(EXIT_FAILURE);
+    }
     struct Token ** array = (struct Token**)malloc(sizeof(struct Token*)*(DynArray_getLength(oTokens)));
+    if(array == NULL)
+    {
+      fprintf(stderr,"%s: Cannot allocate memory\n", filepath);
+      exit(EXIT_FAILURE);
+    }
     for(int i = 0; i < argc; i++)
     {
       array[i] = DynArray_get(oTokens,i);
       new_argv[i] = array[i] -> pcValue;
     }
     new_argv[argc] = NULL;
-    Execute_with_pipe(argc, new_argv, acLine, filepath);
-    DynArray_map(oTokens, freeToken, NULL);
-    DynArray_free(oTokens);
+    Execute_with_pipe(argc, new_argv, acLine, filepath, oTokens);
     free(array);
     free(new_argv);
   }

@@ -1,6 +1,6 @@
 # Macros
 CC = gcc209
-CCFLAGS = -D_BSD_SOURCE
+CCFLAGS = -D_GNU_SOURCE
 
 # Pattern rule
 %.o: %.c
@@ -12,6 +12,11 @@ clobber: clean
 	rm -f *~ \#*\# core
 clean:
 	rm -f ish *.o
+	rm -f execute *.o
+	rm -f builtin *.o
+	rm -f parser *.o
+	rm -f dynarray *.o
+
 
 # Dependency rules for file targets
 ish: ish.o builtin.o execute.o parser.o dynarray.o

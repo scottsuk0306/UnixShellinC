@@ -27,7 +27,11 @@ int main(int argc, char **argv)
   sigprocmask(SIG_UNBLOCK, &sSet, NULL);
   filepath = argv[0];
   FILE * fp;
+  char *path = getenv("PWD");
+  chdir(getenv("HOME"));
   fp = fopen(".ishrc","r");
+  chdir(path);
+
   /* If there is file named .ishrc */
   if(fp)
   {

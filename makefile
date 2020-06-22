@@ -1,6 +1,6 @@
 # Macros
 CC = gcc209
-CCFLAGS = -D_BSD_SOURCE
+CCFLAGS = -D_GNU_SOURCE
 
 # Pattern rule
 %.o: %.c
